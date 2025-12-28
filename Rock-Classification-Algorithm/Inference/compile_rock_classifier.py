@@ -85,11 +85,17 @@ try:
     
     # Compile to HEF (quantization already happened during optimize)
     print("[4/4] Compiling to HEF format...")
-    hef_path = runner.compile()
+    hef_data = runner.compile()
+    
+    # Save HEF to file
+    hef_filename = f"{model_name}.hef"
+    with open(hef_filename, 'wb') as f:
+        f.write(hef_data)
     
     print("\n" + "="*50)
     print("✓ Compilation completed successfully!")
-    print(f"✓ Output: {hef_path}")
+    print(f"✓ Output: {hef_filename}")
+    print(f"✓ File size: {len(hef_data) / 1024 / 1024:.2f} MB")
     print("="*50)
     print("\nNext steps:")
     print("  1. Transfer the .hef file to your Hailo device")

@@ -23,17 +23,23 @@ conda activate hailodfc
 ```
 
 ### 2. Install Hailo Dataflow Compiler
+
+Download the Hailo Dataflow Compiler wheel file from [Hailo Developer Zone](https://hailo.ai/developer-zone/) and install:
+
 ```bash
-pip install hailo_dataflow_compiler==3.33.0
+# If downloaded to ~/Downloads
+pip install ~/Downloads/hailo_dataflow_compiler-3.33.0-py3-none-linux_x86_64.whl
+
+# Or specify the full path
+pip install /path/to/hailo_dataflow_compiler-3.33.0-py3-none-linux_x86_64.whl
 ```
 
 ### 3. Install Hailo Model Zoo (Optional but Recommended)
 ```bash
-git clone https://github.com/hailo-ai/hailo_model_zoo.git
-cd hailo_model_zoo
-pip install -e . --no-build-isolation
-cd ..
+pip install hailo-model-zoo
 ```
+
+**Note:** After installation, you can safely delete the `.whl` file from your Downloads folder to free up space.
 
 ## Files Overview
 
@@ -43,9 +49,9 @@ cd ..
 - Calibration images - Representative dataset for quantization (6 images per class recommended)
 
 ### Generated Files
-- `rock_classifier_efficientnet_b0_opset11.onnx` - ONNX model with opset 11
-- `calibration_npy/` - Preprocessed calibration data in numpy format
-- `rock_classifier_efficientnet_b0.hef` - Final Hailo Executable Format file
+- `rock_classifier_efficientnet_b0_opset11.onnx` - ONNX model with opset 11 (16 MB)
+- `calibration_npy/` - Preprocessed calibration data in numpy format (94+ files)
+- `efficientnet_b0_rock_classifier.hef` - Final Hailo Executable Format file (12-13 MB)
 
 ### Scripts
 - `export_onnx_opset11.py` - Export PyTorch model to ONNX opset 11
@@ -101,16 +107,25 @@ python prepare_calibration_npy.py
 
 ### Step 3: Compile to HEF
 
+**Important:** Make sure the `hailodfc` conda environment is activated before running:
+
 ```bash
-python compile_rock_classifier.py
+conda activate hailodfc
+python3 compile_rock_classifier.py
 ```
 
 **What happens:**
 1. **Translation** (2-3 seconds): ONNX → Hailo IR
 2. **Optimization** (1-3 minutes): Applies quantization using calibration data
-3. **Compilation** (10-30 minutes): Generates optimal partition across Hailo-8L contexts
+3. **Compilation** (45-55 minutes): Generates optimal partition across Hailo-8L contexts
 
-**Output:** `rock_classifier_efficientnet_b0.hef`
+**Compilation Process:**
+- Tests different context partitions (4 → 5 → 6 contexts)
+- Each iteration optimizes performance
+- Allocates model layers to Hailo-8L clusters
+- Generates final HEF binary
+
+**Output:** `efficientnet_b0_rock_classifier.hef` (12-13 MB)
 
 ### Expected Compilation Messages
 
@@ -118,20 +133,35 @@ python compile_rock_classifier.py
 ✓ Found 94 calibration arrays
 [1/4] Initializing Hailo SDK Client...
 [2/4] Loading ONNX model...
-[info] Translation completed on ONNX model efficientnet_b0_rock_classifier
+[info] Translation completed on ONNX model efficientnet_b0_rock_classifier (completion time: 00:00:03.11)
 [3/4] Optimizing model for Hailo-8L...
+      Using 94 calibration samples from calibration_npy
 [info] Starting Model Optimization
+[info] Using dataset with 64 entries for calibration
+Calibration: 100%|████████████████████████████████| 64/64 [01:47<00:00,  1.59s/entries]
 [info] Model Optimization is done
 ✓ Optimization complete
 [4/4] Compiling to HEF format...
 [info] Finding the best partition to contexts...
 Found valid partition to 4 contexts
 [info] Searching for a better partition...
-Found valid partition to 5 contexts, Performance improved by X%
-...
+Found valid partition to 5 contexts, Performance improved by 6.1%
+[info] Searching for a better partition...
+Found valid partition to 6 contexts, Performance improved by 2.9%
+[info] Partition to contexts finished successfully
+[info] Partitioner finished after 246 iterations, Time it took: 44m 51s
+[info] Successful Mapping (allocation time: 47m 14s)
+[info] Building HEF...
+[info] Successful Compilation (compilation time: 30s)
+
+==================================================
 ✓ Compilation completed successfully!
 ✓ Output: efficientnet_b0_rock_classifier.hef
+✓ File size: 12.05 MB
+==================================================
 ```
+
+**Total time:** ~50-55 minutes on typical development machine
 
 ## Important Notes
 
@@ -154,10 +184,12 @@ You may see these warnings (they're normal):
 
 ### Performance Optimization
 The compiler searches for optimal partitioning across Hailo contexts:
-- Starts with 4 contexts, may increase to 5+
-- Each iteration tests different layer distributions
-- Stops when improvements plateau
-- Typical: 10-30 iterations, 15-45 minutes total
+- Starts with 4 contexts, may increase to 5 or 6
+- Each iteration tests different layer distributions across hardware clusters
+- Stops when improvements plateau (typically after 200-250 iterations)
+- Final partition: 6 contexts for EfficientNet-B0
+- Resource utilization: ~60% control, ~20-35% compute, ~25-30% memory per context
+- Total optimization time: 45-55 minutes
 
 ## Troubleshooting
 
@@ -177,16 +209,24 @@ Run `prepare_calibration_npy.py`
 **Solution:** Collect more representative images if accuracy is critical
 
 ### Compilation takes very long (>60 minutes)
-**Causes:**
-- Complex model architecture
-- Limited system resources (use dedicated machine)
+**Typical time:** 45-55 minutes for EfficientNet-B0
+
+**Causes for longer compilation:**
+- Complex model architecture with many layers
+- Limited system resources (use dedicated machine with 8GB+ RAM)
 - Many calibration samples (>1000)
+- CPU-only compilation (no GPU acceleration)
+
+**Normal behavior:** The compiler spends most time on:
+- Context partitioning (40-45 minutes)
+- Resource allocation/mapping (45-50 minutes)
+- Final compilation and HEF building (<1 minute)
 
 ## Deployment
 
-Once you have the `.hef` file:
-
-1. **Transfer to Hailo device:**
+Once you have theRaspberry Pi with Hailo AI Kit:**
+   ```bash
+   scp efficientnet_b0_rock_classifier.hef pi@raspberrypi.local:/home/pi
    ```bash
    scp rock_classifier_efficientnet_b0.hef user@hailo-device:/path/to/models/
    ```
@@ -205,9 +245,10 @@ Once you have the `.hef` file:
 ## Expected Performance
 
 - **Quantization:** float32 → int8 (4× smaller, faster)
-- **Accuracy loss:** Typically <2% with good calibration
+- **Accuracy loss:** Typically <2% with good calibration (94 samples used)
 - **Inference speed:** ~100-200 FPS on Hailo-8L (depends on preprocessing)
-- **Model size:** ~4MB HEF vs 16MB ONNX
+- **Model size:** 12.05 MB HEF vs 16 MB ONNX
+- **Hardware:** Optimized for Hailo-8L with 6-context partition
 
 ## Rock Classification Classes
 
