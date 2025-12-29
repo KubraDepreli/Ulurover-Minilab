@@ -1,0 +1,4 @@
+# Ignore calibration data and numpy files
+Rock-Classification-Algorithm/Inference/calibration_data/
+Rock-Classification-Algorithm/Inference/ONNX-HEF-Conversion/calibration_npy/
+Rock-Classification-Algorithm/Inference/ONNX-HEF-Conversion/calibration_npy/**
