@@ -44,9 +44,9 @@ pip install hailo-model-zoo
 ## Files Overview
 
 ### Input Files
-- `rock_classifier_efficientnet_b0.pth` - Trained PyTorch model weights
-- `classes.json` - Rock classification labels (18 classes)
-- Calibration images - Representative dataset for quantization (6 images per class recommended)
+- `../rock_classifier_efficientnet_b0.pth` - Trained PyTorch model weights (in parent Inference directory)
+- `../classes.json` - Rock classification labels (18 classes)
+- `../calibration_data/` - Representative dataset for quantization (6 images per class recommended)
 
 ### Generated Files
 - `rock_classifier_efficientnet_b0_opset11.onnx` - ONNX model with opset 11 (16 MB)
@@ -65,6 +65,9 @@ pip install hailo-model-zoo
 **Why Opset 11?** Hailo DFC 3.33.0 requires ONNX opset version 11. Modern PyTorch exports opset 18+ by default.
 
 ```bash
+# Navigate to the conversion directory
+cd Rock-Classification-Algorithm/Inference/ONNX-HEF-Conversion
+
 # Option A: If you have PyTorch 1.13.x installed
 python export_onnx_opset11.py
 
@@ -90,8 +93,8 @@ Calibration data is used for quantization (converting float32 → int8) while ma
 - Must be representative of real-world data
 
 ```bash
-# Place calibration images in calibration_data/ directory
-# Structure: calibration_data/*.jpg
+# Place calibration images in ../calibration_data/ directory
+# Structure: ../calibration_data/*.jpg
 
 # Convert to numpy format (required by Hailo DFC 3.33.0)
 python prepare_calibration_npy.py
@@ -110,6 +113,7 @@ python prepare_calibration_npy.py
 **Important:** Make sure the `hailodfc` conda environment is activated before running:
 
 ```bash
+cd ONNX-HEF-Conversion
 conda activate hailodfc
 python3 compile_rock_classifier.py
 ```

@@ -14,7 +14,7 @@ def export_for_hailo_dfc_3():
     print("="*70)
     
     # Load model
-    model_path = "rock_classifier_efficientnet_b0.pth"
+    model_path = "../rock_classifier_efficientnet_b0.pth"
     print(f"\n[1/4] Loading model: {model_path}")
     
     # Create model architecture

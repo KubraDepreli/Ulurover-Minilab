@@ -8,7 +8,7 @@ from PIL import Image
 from pathlib import Path
 
 # Configuration
-calib_dir = Path("calibration_data")
+calib_dir = Path("../calibration_data")
 output_dir = Path("calibration_npy")
 input_size = 224  # EfficientNet-B0 input size
 
