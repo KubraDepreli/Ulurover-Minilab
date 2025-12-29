@@ -1,64 +1,71 @@
-import torch
-import torch.nn as nn
-import torchvision.transforms as transforms
-
+import numpy as np
 from PIL import Image
-from torchvision.models import efficientnet_b0
 import json
-
-
-class RockClassifier(nn.Module):
-    def __init__(self, num_classes=18, dropout=0.3):
-        super().__init__()
-
-        base = efficientnet_b0(weights=None)
-        
-        self.features = base.features
-        in_features = base.classifier[1].in_features
-        self.classifier = nn.Sequential(
-            nn.Dropout(p=dropout, inplace=True),
-            nn.Linear(in_features, num_classes)
-        )
-
-        self.attention_pool = nn.AdaptiveAvgPool2d(1)
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.attention_pool(x)
-        x = x.view(x.size(0), -1)
-        return self.classifier(x)
-
-
-model = RockClassifier()
-
-model.load_state_dict(torch.load("./rock_classifier_efficientnet_b0.pth", map_location=torch.device('cpu'), weights_only=False))
-
-model.eval()
+from hailo_platform import (HEF, VDevice, HailoStreamInterface, InferVStreams, ConfigureParams,
+                            InputVStreamParams, OutputVStreamParams, FormatType)
 
 # Load class names
 with open("./classes.json", "r") as f:
     rock_classes = json.load(f)
 
-transform = transforms.Compose([
-    transforms.Resize((260, 260)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
+# Load and configure the HEF file
+hef_path = "./ONNX-HEF-Conversion/efficientnet_b0_rock_classifier.hef"
+hef = HEF(hef_path)
 
-image_path = "../../Images/Test-Rocks/limestone.jpeg"
+# Create VDevice
+target = VDevice()
 
+# Configure the device
+configure_params = ConfigureParams.create_from_hef(hef, interface=HailoStreamInterface.PCIe)
+network_group = target.configure(hef, configure_params)[0]
+network_group_params = network_group.create_params()
+
+# Get input and output information
+input_vstreams_params = InputVStreamParams.make(network_group, quantized=False, format_type=FormatType.FLOAT32)
+output_vstreams_params = OutputVStreamParams.make(network_group, quantized=False, format_type=FormatType.FLOAT32)
+
+# Get input shape from HEF
+input_vstream_info = network_group.get_input_vstream_infos()[0]
+input_shape = input_vstream_info.shape
+print(f"Expected input shape: {input_shape}")
+
+# Load and preprocess image
+image_path = "../../Images/Test-Rocks/hematite-haematite-mineral-stone-isolated-photo.jpg"
 image = Image.open(image_path).convert("RGB")
-input_tensor = transform(image).unsqueeze(0)
 
-with torch.no_grad():
-    output = model(input_tensor)
+# Resize to match HEF expected input (height, width from shape)
+expected_height, expected_width = input_shape[0], input_shape[1]
+image = image.resize((expected_width, expected_height))
 
-predicted_class = torch.argmax(output, dim=1).item()
-probabilities = torch.softmax(output, dim=1).squeeze()
+# Convert to numpy and normalize
+img_array = np.array(image).astype(np.float32) / 255.0
+mean = np.array([0.485, 0.456, 0.406])
+std = np.array([0.229, 0.224, 0.225])
+img_array = (img_array - mean) / std
+
+# Ensure HWC format (Hailo expects NHWC)
+if img_array.shape[-1] != 3:
+    img_array = np.transpose(img_array, (1, 2, 0))
+
+# Create input dictionary
+input_data = {input_vstream_info.name: np.expand_dims(img_array, axis=0).astype(np.float32)}
+
+# Run inference
+with InferVStreams(network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline:
+    with network_group.activate(network_group_params):
+        output = infer_pipeline.infer(input_data)
+
+# Process output
+output_name = list(output.keys())[0]
+predictions = output[output_name][0]
+
+# Get predicted class
+predicted_class = np.argmax(predictions)
+probabilities = np.exp(predictions) / np.sum(np.exp(predictions))  # Softmax
 
 print(f"Predicted rock type: {rock_classes[predicted_class]}")
-print(f"Confidence: {probabilities[predicted_class].item():.2%}")
+print(f"Confidence: {probabilities[predicted_class]:.2%}")
 print(f"\nTop 3 predictions:")
-top3_probs, top3_indices = torch.topk(probabilities, 3)
-for prob, idx in zip(top3_probs, top3_indices):
-    print(f"  {rock_classes[idx]}: {prob.item():.2%}")
+top3_indices = np.argsort(probabilities)[-3:][::-1]
+for idx in top3_indices:
+    print(f"  {rock_classes[idx]}: {probabilities[idx]:.2%}")

@@ -36,12 +36,13 @@ def export_for_hailo_dfc_3():
     model.eval()
     print("✓ Model loaded")
     
-    # Dummy input
-    dummy_input = torch.randn(1, 3, 224, 224)
+    # Dummy input - MUST match training resolution
+    dummy_input = torch.randn(1, 3, 260, 260)
     output_path = "rock_classifier_efficientnet_b0_opset11.onnx"
     
     print(f"\n[2/4] Exporting to ONNX...")
     print(f"  Target: {output_path}")
+    print(f"  Input size: 260x260 (matches training)")
     print(f"  Opset: 11 (Hailo DFC 3.33.0 compatible)")
     
     # Export with opset 11

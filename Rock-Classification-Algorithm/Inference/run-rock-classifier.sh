@@ -8,5 +8,5 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate rock-classification
 
 # Run the classifier
-cd /home/raspberrypi/Rock-Classifier/Ulurover-Minilab/Rock-Classification-Algorithm/Inference
+cd /home/raspberrypi/Ulurover-Minilab/Ulurover-Minilab/Rock-Classification-Algorithm/Inference
 python rock-classifier-plain.py "$@"
