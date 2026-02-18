@@ -14,12 +14,12 @@ if [ -z "$PORT" ]; then
 fi
 
 echo "Uploading sketch to $PORT..."
-arduino-cli compile --fqbn arduino:avr:uno mq135.ino
+arduino-cli compile --fqbn arduino:avr:uno /home/raspberrypi/Ulurover-Minilab/Ulurover-Minilab/Arduino-Serial-Connection/mq135/mq135.ino
 if [ $? -ne 0 ]; then
   echo "Compilation failed!"
   exit 1
 fi
-arduino-cli upload -p "$PORT" --fqbn arduino:avr:uno mq135.ino
+arduino-cli upload -p "$PORT" --fqbn arduino:avr:uno /home/raspberrypi/Ulurover-Minilab/Ulurover-Minilab/Arduino-Serial-Connection/mq135/mq135.ino
 if [ $? -ne 0 ]; then
   echo "Upload failed!"
   exit 1
