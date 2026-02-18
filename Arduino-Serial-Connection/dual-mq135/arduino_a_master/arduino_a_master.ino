@@ -1,13 +1,13 @@
 /**
- * Arduino A - I2C Master with MQ-135 Sensor
- * Reads local MQ-135 and requests data from Arduino B via I2C
- * Outputs CSV: Seconds,CO2_PPM_A,CO2_PPM_B1,CO2_PPM_B2,CO2_PPM_B3
+ * Arduino A - I2C Master Bridge (No Local Sensors)
+ * Requests data from Arduino B sensors via I2C and outputs via Serial
+ * Outputs CSV: Seconds,CO2_PPM_B1,CO2_PPM_B2,CO2_PPM_B3
  *
  * Protocol: Sends sensor number (1-3) to slave, receives float PPM value
  *
- * Sensor: MQ-135
  * Board: Arduino UNO (primary - connected to PC via USB)
  * I2C: Master, communicates with slave at 0x08
+ * Note: This Arduino only acts as a bridge - all sensors are on Arduino B
  * Author: Kurayi Chawatama
  */
 
@@ -21,9 +21,7 @@
 #define ADC_Bit_Resolution 10
 #define RatioMQ135CleanAir 3.6
 #define I2C_SLAVE_ADDRESS 0x08
-#define NUM_SLAVE_SENSORS 1  // Number of sensors on Arduino B
-
-MQUnifiedsensor MQ135(Board, Voltage_Resolution, ADC_Bit_Resolution, Pin, Type);
+#define NUM_SLAVE_SENSORS 3  // Number of sensors on Arduino B
 
 // Function to request a specific sensor reading from slave
 float requestSensorReading(byte sensor_number) {
@@ -55,39 +53,20 @@ void setup() {
   Serial.begin(9600);
   Wire.begin();  // Join I2C bus as master
   
-  // Print CSV header
-  Serial.print("Seconds,CO2_PPM_A");
+  // Print CSV header (only Arduino B sensors)
+  Serial.print("Seconds");
   for (int i = 1; i <= NUM_SLAVE_SENSORS; i++) {
     Serial.print(",CO2_PPM_B");
     Serial.print(i);
   }
   Serial.println();
-
-  MQ135.setRegressionMethod(1);  // Linear regression
-  MQ135.setA(110.47);
-  MQ135.setB(-2.862);
-  MQ135.init();
-
-  // Calibrate MQ-135 and calculate R0 value
-  float calcR0 = 0;
-  for (int i = 0; i < 10; i++) {
-    MQ135.update();
-    calcR0 += MQ135.calibrate(RatioMQ135CleanAir);
-  }
-  MQ135.setR0(calcR0 / 10);
 }
 
 void loop() {
   static unsigned long seconds = 0;
   
-  // Read local MQ-135 sensor (Arduino A)
-  MQ135.update();
-  float co2_ppm_a = MQ135.readSensor();
-  
-  // Output timestamp and Arduino A reading
+  // Output timestamp
   Serial.print(seconds);
-  Serial.print(",");
-  Serial.print(co2_ppm_a);
   
   // Request data from each sensor on Arduino B
   for (int sensor = 1; sensor <= NUM_SLAVE_SENSORS; sensor++) {

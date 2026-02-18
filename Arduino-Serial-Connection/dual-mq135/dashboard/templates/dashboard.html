@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minilab Dashboard - MQ-135 Sensor Control</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1800px;  /* Wider for 24-27" monitors */
+            margin: 0 auto;
+        }
+        
+        /* Three-column layout for control panels */
+        .panels-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        /* Responsive: stack on smaller screens */
+        @media (max-width: 1600px) {
+            .panels-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
+        @media (max-width: 1000px) {
+            .panels-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .header {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-left h1 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 3px;
+        }
+        
+        .header-left p {
+            color: #666;
+            font-size: 13px;
+        }
+        
+        .header-right {
+            text-align: right;
+            color: #999;
+            font-size: 11px;
+        }
+        
+        .status-bar {
+            background: white;
+            padding: 12px 25px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+        
+        .status-dot.connected {
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+        
+        .control-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            height: 100%;  /* Fill grid cell height */
+        }
+        
+        .control-panel h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .form-group {
+            margin-bottom: 12px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #555;
+            font-weight: 500;
+            font-size: 13px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .sensor-config {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .sensor-config h3 {
+            margin: 0 0 15px 0;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            margin-top: 10px;
+        }
+        
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+        
+        .graph-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .graph-container h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        #plot {
+            width: 100%;
+            height: 380px;  /* Shorter to fit everything on screen */
+        }
+        
+        .message {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        
+        .message.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        
+        .message.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .file-list {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            max-height: 150px;  /* Shorter for side-by-side layout */
+            overflow-y: auto;
+        }
+        
+        .file-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .file-item:hover {
+            background: #e5e7eb;
+        }
+        
+        .file-item.selected {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+        }
+        
+        /* Camera section styles */
+        .camera-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            height: 100%;  /* Fill grid cell height */
+        }
+        
+        .camera-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        /* System monitoring panel */
+        .system-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            height: 100%;
+        }
+        
+        .system-panel h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 13px;
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .stat-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .stat-value.warning {
+            color: #f59e0b;
+        }
+        
+        .stat-value.danger {
+            color: #ef4444;
+        }
+        
+        .cpu-cores {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        
+        .core-bar {
+            background: #f3f4f6;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 20px;
+            position: relative;
+        }
+        
+        .core-bar-fill {
+            background: linear-gradient(90deg, #10b981, #059669);
+            height: 100%;
+            transition: width 0.3s;
+        }
+        
+        .core-bar-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .process-list {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+        
+        .process-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #f9fafb;
+        }
+        
+        .process-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #666;
+        }
+        
+        .process-cpu {
+            color: #333;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .camera-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .camera-preview {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            max-height: 250px;
+        }
+        
+        .camera-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .camera-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            color: #666;
+            font-size: 18px;
+        }
+        
+        .camera-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .camera-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .camera-btn-photo {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        
+        .camera-btn-video {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        
+        .camera-btn-stream {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        
+        .camera-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .camera-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .media-gallery {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+        }
+        
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .media-item {
+            position: relative;
+            background: #f9fafb;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .media-item:hover {
+            transform: scale(1.05);
+        }
+        
+        .media-item img {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+        }
+        
+        .media-item-info {
+            padding: 8px;
+            font-size: 11px;
+            color: #666;
+            background: white;
+        }
+        
+        .media-item .delete-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .media-item:hover .delete-btn {
+            display: block;
+        }
+        
+        .recording-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            display: none;
+        }
+        
+        .recording-indicator.active {
+            display: block;
+            animation: pulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>🔬 Minilab Dashboard</h1>
+                <p>Reaction Rate Monitoring - MQ-135 Sensors + Camera NoIR V2</p>
+            </div>
+            <div class="header-right">
+                Dashboard v2.0<br>
+                Arduino B (I2C @ 0x08)
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot" id="statusDot"></div>
+                <div>
+                    <span id="statusText">Checking connection...</span>
+                    <div style="font-size: 11px; color: #888; margin-top: 2px;">Arduino B via I2C @ 0x08</div>
+                </div>
+            </div>
+            <div id="timestamp"></div>
+        </div>
+        
+        <div id="messageBox" class="message"></div>
+        
+        <!-- Two-column layout for control panels -->
+        <div class="panels-grid">
+            <div class="control-panel">
+                <h2>⚙️ Collection Parameters</h2>
+            <form id="collectionForm">
+                <div class="form-group">
+                    <label for="duration">Duration (seconds)</label>
+                    <input type="number" id="duration" name="duration" min="5" max="3600" value="10" required>
+                </div>
+                
+                <div class="sensor-config">
+                    <h3 style="color: #555; font-size: 16px; margin: 20px 0 15px 0;">Sensor Configuration</h3>
+                    <div class="form-group">
+                        <label for="sensorsB">
+                            🔗 Arduino B Sensors (I2C @ 0x08)
+                            <span style="font-size: 12px; color: #666; display: block; margin-top: 3px;">Connected to experimental setup</span>
+                        </label>
+                        <input type="number" id="sensorsB" name="sensorsB" min="1" max="10" value="3" required>
+                    </div>
+                    <div style="background: #f0f9ff; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px; color: #0369a1;">
+                        ℹ️ Arduino A acts as USB-I2C bridge only (no sensors attached)
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="runButton" style="margin-top: 20px;">
+                    📊 Record Data Collection
+                </button>
+            </form>
+            
+            <div style="border-top: 2px solid #e5e7eb; margin: 30px 0; padding-top: 20px;">
+                <h3 style="color: #555; font-size: 16px; margin-bottom: 15px;">🔴 Live Monitoring</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Monitor sensors in real-time for reaction rate experiments</p>
+                <div id="liveControls">
+                    <button class="btn btn-primary" id="startLiveButton" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        ▶️ Start Live Feed
+                    </button>
+                    <button class="btn btn-primary" id="stopLiveButton" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); display: none;">
+                        ⏹️ Stop Live Feed
+                    </button>
+                </div>
+                <div id="liveStatus" style="margin-top: 10px; font-size: 13px; color: #666;"></div>
+            </div>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <label>Recent Data Files</label>
+                <div class="file-list" id="fileList">
+                    <p style="color: #666; text-align: center;">No files available</p>
+                </div>
+            </div>
+            <button class="btn btn-secondary" id="refreshButton">🔄 Refresh File List</button>
+        </div>
+        
+        <!-- Camera Section -->
+        <div class="camera-section">
+            <h2>📷 Camera NoIR V2 Control</h2>
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Capture visual documentation of experiments</p>
+            
+            <div class="camera-grid">
+                <div class="camera-preview">
+                    <div class="recording-indicator" id="recordingIndicator">● REC</div>
+                    <img id="cameraStream" src="" alt="Camera feed" style="display: none;">
+                    <div class="camera-placeholder" id="cameraPlaceholder">
+                        📷 Camera Ready<br><small style="font-size: 14px; margin-top: 10px; display: block;">Click "Start Stream" to view live feed</small>
+                    </div>
+                </div>
+                
+                <div class="camera-controls">
+                    <button class="camera-btn camera-btn-stream" id="toggleStreamBtn">
+                        📹 Start Stream
+                    </button>
+                    
+                    <button class="camera-btn camera-btn-photo" id="capturePhotoBtn" disabled>
+                        📸 Capture Photo
+                    </button>
+                    
+                    <div class="form-group" style="margin: 0;">
+                        <label for="videoDuration" style="font-size: 13px;">Video Duration (seconds)</label>
+                        <input type="number" id="videoDuration" min="1" max="300" value="10" style="padding: 10px; font-size: 14px;">
+                    </div>
+                    
+                    <button class="camera-btn camera-btn-video" id="recordVideoBtn" disabled>
+                        🎥 Record Video
+                    </button>
+                    
+                    <div id="cameraStatus" style="font-size: 12px; color: #666; padding: 10px; background: #f9fafb; border-radius: 4px; text-align: center;">
+                        Ready
+                    </div>
+                </div>
+            </div>
+            
+            <div class="media-gallery">
+                <h3 style="color: #555; font-size: 16px; margin-bottom: 10px;">📁 Captured Media</h3>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button class="btn btn-secondary" id="refreshMediaBtn" style="flex: 1;">🔄 Refresh Gallery</button>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #666; font-size: 14px; margin-bottom: 10px;">Photos</h4>
+                    <div class="media-grid" id="photosGrid">
+                        <p style="color: #999; text-align: center; grid-column: 1/-1;">No photos captured yet</p>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 style="color: #666; font-size: 14px; margin-bottom: 10px;">Videos</h4>
+                    <div class="media-grid" id="videosGrid">
+                        <p style="color: #999; text-align: center; grid-column: 1/-1;">No videos recorded yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- System Monitoring Panel -->
+        <div class="system-panel">
+            <h2>💻 System Monitor</h2>
+            <p style="font-size: 12px; color: #666; margin-bottom: 12px;">Raspberry Pi 5 Status</p>
+            
+            <div class="stat-item">
+                <span class="stat-label">🌡️ CPU Temp</span>
+                <span class="stat-value" id="cpuTemp">--°C</span>
+            </div>
+            
+            <div class="stat-item">
+                <span class="stat-label">💾 RAM</span>
+                <span class="stat-value" id="ramUsage">--</span>
+            </div>
+            
+            <div class="stat-item">
+                <span class="stat-label">💿 Swap</span>
+                <span class="stat-value" id="swapUsage">--</span>
+            </div>
+            
+            <div style="margin: 12px 0;">
+                <div style="font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;">CPU Cores</div>
+                <div class="cpu-cores" id="cpuCores">
+                    <div class="core-bar"><div class="core-bar-fill" style="width: 0%"></div><div class="core-bar-label">Core 0</div></div>
+                    <div class="core-bar"><div class="core-bar-fill" style="width: 0%"></div><div class="core-bar-label">Core 1</div></div>
+                    <div class="core-bar"><div class="core-bar-fill" style="width: 0%"></div><div class="core-bar-label">Core 2</div></div>
+                    <div class="core-bar"><div class="core-bar-fill" style="width: 0%"></div><div class="core-bar-label">Core 3</div></div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 12px;">
+                <div style="font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;">Top Processes</div>
+                <div class="process-list" id="processList">
+                    <div style="text-align: center; color: #999; padding: 20px;">Loading...</div>
+                </div>
+            </div>
+        </div>
+        
+        </div><!-- End panels-grid -->
+        
+        <!-- Full-width graph at bottom -->
+        <div class="graph-container">
+            <h2>📊 Sensor Data Visualization</h2>
+            <div id="plot"></div>
+        </div>
+    </div>
+    
+    <script>
+        let selectedFile = null;
+        let liveMonitorInterval = null;
+        let liveDataBuffer = {
+            timestamps: [],
+            sensors: {}
+        };
+        const MAX_LIVE_POINTS = 100;  // Keep last 100 data points
+        
+        // Initialize dashboard
+        async function init() {
+            await checkStatus();
+            await loadFileList();
+            // Set up auto-refresh every 5 seconds
+            setInterval(checkStatus, 5000);
+        }
+        
+        // Check system status
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+                const timestamp = document.getElementById('timestamp');
+                
+                if (data.arduino_port) {
+                    statusDot.classList.add('connected');
+                    statusText.innerHTML = `<strong>Arduino A (Bridge)</strong> connected at ${data.arduino_port}`;
+                } else {
+                    statusDot.classList.remove('connected');
+                    statusText.innerHTML = '<strong>Arduino A (Bridge)</strong> not detected';
+                }
+                
+                const time = new Date(data.timestamp).toLocaleTimeString();
+                timestamp.textContent = `Last updated: ${time}`;
+                
+            } catch (error) {
+                console.error('Status check failed:', error);
+            }
+        }
+        
+        // Load file list
+        async function loadFileList() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                const fileList = document.getElementById('fileList');
+                
+                if (data.recent_files && data.recent_files.length > 0) {
+                    fileList.innerHTML = '';
+                    data.recent_files.forEach(file => {
+                        const item = document.createElement('div');
+                        item.className = 'file-item';
+                        item.innerHTML = `
+                            <span>${file}</span>
+                            <span style="font-size: 12px; color: #666;">📄</span>
+                        `;
+                        item.onclick = () => selectFile(file, item);
+                        fileList.appendChild(item);
+                    });
+                } else {
+                    fileList.innerHTML = '<p style="color: #666; text-align: center;">No files available</p>';
+                }
+            } catch (error) {
+                console.error('Failed to load file list:', error);
+            }
+        }
+        
+        // Select file and load data
+        function selectFile(filename, element) {
+            // Stop live monitor if running
+            if (liveMonitorInterval) {
+                stopLiveMonitor();
+            }
+            
+            // Remove previous selection
+            document.querySelectorAll('.file-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Mark new selection
+            element.classList.add('selected');
+            selectedFile = filename;
+            
+            // Load and plot data
+            loadData(filename);
+        }
+        
+        // Load and plot data
+        async function loadData(filename) {
+            try {
+                const response = await fetch(`/api/data/${filename}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    plotData(result.data, `Recorded Data: ${filename}`);
+                } else {
+                    showMessage('error', 'Failed to load data: ' + result.error);
+                }
+            } catch (error) {
+                showMessage('error', 'Error loading data: ' + error.message);
+            }
+        }
+        
+        // Plot data using Plotly
+        function plotData(data, title = 'CO₂ PPM Over Time') {
+            const traces = [];
+            const colors = ['#667eea', '#f56565', '#48bb78', '#ed8936', '#9f7aea'];
+            let colorIndex = 0;
+            
+            for (const [sensorName, sensorData] of Object.entries(data.sensors)) {
+                traces.push({
+                    x: data.timestamps,
+                    y: sensorData,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: sensorName,
+                    line: { color: colors[colorIndex % colors.length], width: 2 },
+                    marker: { size: 6 }
+                });
+                colorIndex++;
+            }
+            
+            const layout = {
+                title: title,
+                xaxis: { title: 'Time (seconds)' },
+                yaxis: { title: 'CO₂ PPM' },
+                hovermode: 'closest',
+                showlegend: true,
+                legend: { orientation: 'h', y: -0.2 }
+            };
+            
+            Plotly.newPlot('plot', traces, layout, { responsive: true });
+        }
+        
+        // Start live monitoring
+        async function startLiveMonitor() {
+            try {
+                const startButton = document.getElementById('startLiveButton');
+                const stopButton = document.getElementById('stopLiveButton');
+                const liveStatus = document.getElementById('liveStatus');
+                
+                startButton.disabled = true;
+                liveStatus.textContent = '⏳ Starting live feed...';
+                
+                const response = await fetch('/api/live/start', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    startButton.style.display = 'none';
+                    stopButton.style.display = 'block';
+                    liveStatus.innerHTML = `<span style="color: #10b981;">🔴 Live - monitoring reaction rate</span>`;
+                    
+                    // Clear buffer
+                    liveDataBuffer = {
+                        timestamps: [],
+                        sensors: {}
+                    };
+                    
+                    // Start polling for data
+                    liveMonitorInterval = setInterval(pollLiveData, 500);
+                    
+                    showMessage('success', '✅ Live monitoring started');
+                } else {
+                    showMessage('error', '❌ Failed to start: ' + result.error);
+                    startButton.disabled = false;
+                    liveStatus.textContent = '';
+                }
+            } catch (error) {
+                showMessage('error', '❌ Error: ' + error.message);
+                document.getElementById('startLiveButton').disabled = false;
+                document.getElementById('liveStatus').textContent = '';
+            }
+        }
+        
+        // Stop live monitoring
+        async function stopLiveMonitor() {
+            try {
+                if (liveMonitorInterval) {
+                    clearInterval(liveMonitorInterval);
+                    liveMonitorInterval = null;
+                }
+                
+                await fetch('/api/live/stop', { method: 'POST' });
+                
+                const startButton = document.getElementById('startLiveButton');
+                const stopButton = document.getElementById('stopLiveButton');
+                const liveStatus = document.getElementById('liveStatus');
+                
+                startButton.style.display = 'block';
+                startButton.disabled = false;
+                stopButton.style.display = 'none';
+                liveStatus.textContent = '';
+                
+                showMessage('info', 'Live monitoring stopped');
+            } catch (error) {
+                console.error('Error stopping live monitor:', error);
+            }
+        }
+        
+        // Poll for live data
+        async function pollLiveData() {
+            try {
+                const response = await fetch('/api/live/data');
+                const result = await response.json();
+                
+                if (result.success && result.timestamp !== undefined) {
+                    // Add new data point
+                    liveDataBuffer.timestamps.push(result.timestamp);
+                    
+                    for (const [sensorName, value] of Object.entries(result.sensors)) {
+                        if (!liveDataBuffer.sensors[sensorName]) {
+                            liveDataBuffer.sensors[sensorName] = [];
+                        }
+                        liveDataBuffer.sensors[sensorName].push(value);
+                    }
+                    
+                    // Trim buffer to max points
+                    if (liveDataBuffer.timestamps.length > MAX_LIVE_POINTS) {
+                        liveDataBuffer.timestamps.shift();
+                        for (const sensorName in liveDataBuffer.sensors) {
+                            liveDataBuffer.sensors[sensorName].shift();
+                        }
+                    }
+                    
+                    // Update graph
+                    plotData(liveDataBuffer, 'Live Monitor - Reaction Rate');
+                }
+            } catch (error) {
+                console.error('Error polling live data:', error);
+            }
+        }
+        
+        // Handle form submission
+        document.getElementById('collectionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Stop live monitor if running
+            if (liveMonitorInterval) {
+                await stopLiveMonitor();
+            }
+            
+            const duration = document.getElementById('duration').value;
+            const sensorsB = document.getElementById('sensorsB').value;
+            const runButton = document.getElementById('runButton');
+            
+            // Disable button and show loading
+            runButton.disabled = true;
+            runButton.innerHTML = '⏳ Collecting Data<span class="spinner"></span>';
+            
+            showMessage('info', `Recording data for ${duration} seconds with ${sensorsB} sensor(s) on Arduino B...`);
+            
+            try {
+                const response = await fetch('/api/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        duration, 
+                        num_sensors: parseInt(sensorsB),
+                        sensors_a: 0,
+                        sensors_b: parseInt(sensorsB)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('success', `✅ ${result.message}. File: ${result.output_file}`);
+                    await loadFileList();
+                    
+                    // Auto-load the new file
+                    setTimeout(() => {
+                        const firstFile = document.querySelector('.file-item');
+                        if (firstFile) {
+                            firstFile.click();
+                        }
+                    }, 500);
+                } else {
+                    showMessage('error', `❌ ${result.error}`);
+                }
+            } catch (error) {
+                showMessage('error', `❌ Request failed: ${error.message}`);
+            } finally {
+                runButton.disabled = false;
+                runButton.innerHTML = '📊 Record Data Collection';
+            }
+        });
+        
+        // Live monitoring controls
+        document.getElementById('startLiveButton').addEventListener('click', startLiveMonitor);
+        document.getElementById('stopLiveButton').addEventListener('click', stopLiveMonitor);
+        
+        // Refresh file list
+        document.getElementById('refreshButton').addEventListener('click', loadFileList);
+        
+        // Show message
+        function showMessage(type, text) {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.className = `message ${type}`;
+            messageBox.textContent = text;
+            messageBox.style.display = 'block';
+            
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 5000);
+        }
+        
+        // ===== CAMERA CONTROLS =====
+        let streamActive = false;
+        let videoRecordingCheckInterval = null;
+        
+        // Toggle camera stream
+        document.getElementById('toggleStreamBtn').addEventListener('click', function() {
+            const img = document.getElementById('cameraStream');
+            const placeholder = document.getElementById('cameraPlaceholder');
+            const btn = this;
+            const statusDiv = document.getElementById('cameraStatus');
+            
+            if (!streamActive) {
+                // Start stream
+                img.src = '/api/camera/stream';
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+                btn.innerHTML = '⏹️ Stop Stream';
+                btn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+                statusDiv.textContent = '🔴 Streaming...';
+                document.getElementById('capturePhotoBtn').disabled = false;
+                document.getElementById('recordVideoBtn').disabled = false;
+                streamActive = true;
+            } else {
+                // Stop stream
+                img.src = '';
+                img.style.display = 'none';
+                placeholder.style.display = 'flex';
+                btn.innerHTML = '📹 Start Stream';
+                btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                statusDiv.textContent = 'Ready';
+                document.getElementById('capturePhotoBtn').disabled = true;
+                document.getElementById('recordVideoBtn').disabled = true;
+                streamActive = false;
+            }
+        });
+        
+        // Capture photo
+        document.getElementById('capturePhotoBtn').addEventListener('click', async function() {
+            const btn = this;
+            const statusDiv = document.getElementById('cameraStatus');
+            const originalText = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Capturing...';
+                statusDiv.textContent = '📸 Capturing photo...';
+                
+                const response = await fetch('/api/camera/photo', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('success', `✅ Photo captured: ${result.filename}`);
+                    statusDiv.textContent = '✅ Photo saved';
+                    await loadMediaGallery();
+                } else {
+                    showMessage('error', `❌ ${result.error}`);
+                    statusDiv.textContent = '❌ Capture failed';
+                }
+            } catch (error) {
+                showMessage('error', `❌ Request failed: ${error.message}`);
+                statusDiv.textContent = '❌ Error';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                setTimeout(() => {
+                    if (streamActive) {
+                        statusDiv.textContent = '🔴 Streaming...';
+                    }
+                }, 2000);
+            }
+        });
+        
+        // Record video
+        document.getElementById('recordVideoBtn').addEventListener('click', async function() {
+            const btn = this;
+            const statusDiv = document.getElementById('cameraStatus');
+            const recordingIndicator = document.getElementById('recordingIndicator');
+            const duration = parseInt(document.getElementById('videoDuration').value);
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '⏺️ Recording...';
+                recordingIndicator.classList.add('active');
+                statusDiv.textContent = `🔴 Recording for ${duration}s...`;
+                
+                const response = await fetch('/api/camera/video/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ duration: duration })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('info', `🎥 Recording started for ${duration} seconds`);
+                    
+                    // Check recording status periodically
+                    videoRecordingCheckInterval = setInterval(async () => {
+                        const statusResponse = await fetch('/api/camera/video/status');
+                        const statusData = await statusResponse.json();
+                        
+                        if (!statusData.recording) {
+                            clearInterval(videoRecordingCheckInterval);
+                            videoRecordingCheckInterval = null;
+                            btn.disabled = false;
+                            btn.innerHTML = '🎥 Record Video';
+                            recordingIndicator.classList.remove('active');
+                            statusDiv.textContent = '✅ Recording complete';
+                            showMessage('success', '✅ Video recording completed');
+                            await loadMediaGallery();
+                            
+                            setTimeout(() => {
+                                if (streamActive) {
+                                    statusDiv.textContent = '🔴 Streaming...';
+                                }
+                            }, 2000);
+                        }
+                    }, 1000);
+                } else {
+                    showMessage('error', `❌ ${result.error}`);
+                    btn.disabled = false;
+                    btn.innerHTML = '🎥 Record Video';
+                    recordingIndicator.classList.remove('active');
+                    statusDiv.textContent = '❌ Recording failed';
+                }
+            } catch (error) {
+                showMessage('error', `❌ Request failed: ${error.message}`);
+                btn.disabled = false;
+                btn.innerHTML = '🎥 Record Video';
+                recordingIndicator.classList.remove('active');
+                statusDiv.textContent = '❌ Error';
+            }
+        });
+        
+        // Load media gallery
+        async function loadMediaGallery() {
+            try {
+                const response = await fetch('/api/camera/media/list');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Display photos
+                    const photosGrid = document.getElementById('photosGrid');
+                    if (data.photos && data.photos.length > 0) {
+                        photosGrid.innerHTML = data.photos.map(photo => `
+                            <div class="media-item" onclick="window.open('${photo.url}', '_blank')">
+                                <img src="${photo.url}" alt="${photo.filename}">
+                                <button class="delete-btn" onclick="event.stopPropagation(); deleteMedia('photo', '${photo.filename}')">×</button>
+                                <div class="media-item-info">
+                                    ${photo.filename.replace('photo_', '').replace('.jpg', '')}
+                                    <br><span style="font-size: 10px;">${(photo.size / 1024).toFixed(0)} KB</span>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        photosGrid.innerHTML = '<p style="color: #999; text-align: center; grid-column: 1/-1;">No photos captured yet</p>';
+                    }
+                    
+                    // Display videos
+                    const videosGrid = document.getElementById('videosGrid');
+                    if (data.videos && data.videos.length > 0) {
+                        videosGrid.innerHTML = data.videos.map(video => `
+                            <div class="media-item" onclick="window.open('${video.url}', '_blank')">
+                                <div style="width: 100%; aspect-ratio: 16/9; background: #333; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                                    ▶️
+                                </div>
+                                <button class="delete-btn" onclick="event.stopPropagation(); deleteMedia('video', '${video.filename}')">×</button>
+                                <div class="media-item-info">
+                                    ${video.filename.replace('video_', '').replace('.h264', '')}
+                                    <br><span style="font-size: 10px;">${(video.size / 1024 / 1024).toFixed(1)} MB</span>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        videosGrid.innerHTML = '<p style="color: #999; text-align: center; grid-column: 1/-1;">No videos recorded yet</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load media gallery:', error);
+            }
+        }
+        
+        // Delete media
+        async function deleteMedia(type, filename) {
+            if (!confirm(`Delete this ${type}?`)) return;
+            
+            try {
+                const response = await fetch('/api/camera/media/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: type, filename: filename })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('success', '✅ File deleted');
+                    await loadMediaGallery();
+                } else {
+                    showMessage('error', `❌ ${result.error}`);
+                }
+            } catch (error) {
+                showMessage('error', `❌ Request failed: ${error.message}`);
+            }
+        }
+        
+        // Refresh media gallery button
+        document.getElementById('refreshMediaBtn').addEventListener('click', loadMediaGallery);
+        
+        // ===== SYSTEM MONITORING =====
+        async function updateSystemStats() {
+            try {
+                const response = await fetch('/api/system/stats');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('System stats received:', data);
+                
+                if (data.success) {
+                    // Update CPU temperature
+                    const tempElement = document.getElementById('cpuTemp');
+                    const temp = data.cpu_temp;
+                    tempElement.textContent = `${temp}°C`;
+                    if (temp > 70) {
+                        tempElement.className = 'stat-value danger';
+                    } else if (temp > 60) {
+                        tempElement.className = 'stat-value warning';
+                    } else {
+                        tempElement.className = 'stat-value';
+                    }
+                    
+                    // Update RAM usage
+                    document.getElementById('ramUsage').textContent = 
+                        `${data.ram_used}/${data.ram_total} GB (${data.ram_percent}%)`;
+                    
+                    // Update Swap usage
+                    document.getElementById('swapUsage').textContent = 
+                        `${data.swap_used}/${data.swap_total} GB (${data.swap_percent}%)`;
+                    
+                    // Update CPU cores
+                    const coresContainer = document.getElementById('cpuCores');
+                    coresContainer.innerHTML = data.cpu_cores.map((usage, i) => `
+                        <div class="core-bar">
+                            <div class="core-bar-fill" style="width: ${usage}%; background: ${usage > 80 ? '#ef4444' : usage > 60 ? '#f59e0b' : 'linear-gradient(90deg, #10b981, #059669)'}"></div>
+                            <div class="core-bar-label">C${i} ${usage}%</div>
+                        </div>
+                    `).join('');
+                    
+                    // Update process list
+                    const processList = document.getElementById('processList');
+                    if (data.top_processes && data.top_processes.length > 0) {
+                        processList.innerHTML = data.top_processes.map(proc => `
+                            <div class="process-item">
+                                <span class="process-name">${proc.name}</span>
+                                <span class="process-cpu">${proc.cpu}%</span>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    console.error('API returned error:', data.error);
+                    document.getElementById('cpuTemp').textContent = 'Error';
+                    document.getElementById('processList').innerHTML = '<div class="process-item">Failed to load stats</div>';
+                }
+            } catch (error) {
+                console.error('Failed to update system stats:', error);
+                document.getElementById('cpuTemp').textContent = 'Offline';
+                document.getElementById('ramUsage').textContent = 'Server not responding';
+                document.getElementById('processList').innerHTML = '<div class="process-item">Dashboard offline</div>';
+            }
+        }
+        
+        // Update system stats every 2 seconds
+        setInterval(updateSystemStats, 2000);
+        updateSystemStats();  // Initial update
+        
+        // Initialize on page load
+        init();
+        loadMediaGallery();  // Load initial media gallery
+    </script>
+</body>
+</html>
