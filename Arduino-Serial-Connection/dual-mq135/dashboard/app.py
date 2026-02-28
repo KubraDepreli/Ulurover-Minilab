@@ -81,13 +81,13 @@ def run_collection():
         sensors_a = int(data.get('sensors_a', 1))
         sensors_b = int(data.get('sensors_b', 1))
         
-        # Auto-detect port - MQ135 is on ttyACM1
+        # Auto-detect port - MQ135 dual setup
         ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
         if not ports:
             return jsonify({'success': False, 'error': 'No Arduino port found'}), 400
         
-        # Use ttyACM1 for MQ135 dual sensor setup
-        port = '/dev/ttyACM1' if '/dev/ttyACM1' in ports else ports[0]
+        # Use ttyACM0 for MQ135 if only one Arduino, ttyACM1 if both are connected
+        port = '/dev/ttyACM1' if '/dev/ttyACM1' in ports else ('/dev/ttyACM0' if '/dev/ttyACM0' in ports else ports[0])
         
         # Generate output filename
         output_file = os.path.join(DATA_DIR, f"dual_co2_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
@@ -199,31 +199,15 @@ def start_live_monitor():
         if live_monitor_active:
             return jsonify({'success': False, 'error': 'Live monitor already running'}), 400
         
-        # Find Arduino port - MQ135 is on ttyACM1
+        # Find Arduino port - MQ135 dual setup
         ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
         if not ports:
             return jsonify({'success': False, 'error': 'No Arduino port found'}), 400
         
-        # Use ttyACM1 for MQ135 dual sensor setup
-        port = '/dev/ttyACM1' if '/dev/ttyACM1' in ports else ports[0]
+        # Use ttyACM0 for MQ135 if only one Arduino, ttyACM1 if both are connected
+        port = '/dev/ttyACM1' if '/dev/ttyACM1' in ports else ('/dev/ttyACM0' if '/dev/ttyACM0' in ports else ports[0])
         
-        # First, upload the Arduino sketch
-        compile_cmd = ['arduino-cli', 'compile', '--fqbn', 'arduino:avr:uno', ARDUINO_A_SKETCH]
-        result = subprocess.run(compile_cmd, capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            return jsonify({'success': False, 'error': 'Compilation failed'}), 500
-        
-        upload_cmd = ['arduino-cli', 'upload', '-p', port, '--fqbn', 'arduino:avr:uno', ARDUINO_A_SKETCH]
-        result = subprocess.run(upload_cmd, capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            return jsonify({'success': False, 'error': 'Upload failed'}), 500
-        
-        # Wait for Arduino to reboot
-        time.sleep(3)
-        
-        # Open serial connection
+        # Open serial connection (Arduino should already be programmed)
         live_serial_connection = serial.Serial(port, 9600, timeout=2)
         live_monitor_active = True
         

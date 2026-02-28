@@ -779,12 +779,14 @@
                 const statusText = document.getElementById('statusText');
                 const timestamp = document.getElementById('timestamp');
                 
-                if (data.arduino_port) {
+                // Check if connected via live monitoring or has available ports
+                if (data.connected || (data.available_ports && data.available_ports.length > 0)) {
                     statusDot.classList.add('connected');
-                    statusText.innerHTML = `<strong>Arduino A (Bridge)</strong> connected at ${data.arduino_port}`;
+                    const port = data.current_port || data.available_ports[0];
+                    statusText.innerHTML = `<strong>Arduino A (Master)</strong> connected at ${port}`;
                 } else {
                     statusDot.classList.remove('connected');
-                    statusText.innerHTML = '<strong>Arduino A (Bridge)</strong> not detected';
+                    statusText.innerHTML = '<strong>Arduino A (Master)</strong> not detected';
                 }
                 
                 const time = new Date(data.timestamp).toLocaleTimeString();
