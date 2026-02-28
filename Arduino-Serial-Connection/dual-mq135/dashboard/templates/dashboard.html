@@ -575,8 +575,27 @@
                 <p>Reaction Rate Monitoring - MQ-135 Sensors + Camera NoIR V2</p>
             </div>
             <div class="header-right">
-                Dashboard v2.0<br>
-                Arduino B (I2C @ 0x08)
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div>
+                        Dashboard v2.0<br>
+                        Arduino B (I2C @ 0x08)
+                    </div>
+                    <button id="stopServerButton" style="
+                        padding: 8px 16px;
+                        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                        transition: all 0.3s;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(239,68,68,0.4)'" 
+                       onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'">
+                        🛑 Stop Server
+                    </button>
+                </div>
             </div>
         </div>
         
@@ -1873,6 +1892,51 @@
         
         // Make selectWeatherFile globally accessible
         window.selectWeatherFile = selectWeatherFile;
+        
+        // ===== SERVER CONTROL =====
+        document.getElementById('stopServerButton').addEventListener('click', async function() {
+            if (!confirm('⚠️ Are you sure you want to stop the dashboard server?\n\nThis will close all connections and shut down the server.')) {
+                return;
+            }
+            
+            const button = this;
+            button.disabled = true;
+            button.textContent = '⏳ Stopping...';
+            
+            try {
+                const response = await fetch('/api/server/shutdown', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    button.textContent = '✓ Server Stopped';
+                    button.style.background = '#6b7280';
+                    
+                    // Show message
+                    const messageBox = document.getElementById('messageBox');
+                    messageBox.className = 'message info';
+                    messageBox.textContent = '✓ Server is shutting down. You can close this window.';
+                    messageBox.style.display = 'block';
+                    
+                    // Disable all buttons
+                    document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+                } else {
+                    button.disabled = false;
+                    button.textContent = '🛑 Stop Server';
+                    alert('Failed to stop server: ' + result.error);
+                }
+            } catch (error) {
+                // Connection lost - server likely stopped successfully
+                button.textContent = '✓ Server Stopped';
+                button.style.background = '#6b7280';
+                
+                const messageBox = document.getElementById('messageBox');
+                messageBox.className = 'message info';
+                messageBox.textContent = '✓ Server has stopped. You can close this window.';
+                messageBox.style.display = 'block';
+                
+                document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+            }
+        });
         
         // Initialize on page load
         init();

@@ -9,6 +9,8 @@ import glob
 import csv
 import serial
 import time
+import signal
+import sys
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response, send_file
 
@@ -885,6 +887,50 @@ def restart_port():
                     'port': port
                 })
                 
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ===== SERVER CONTROL =====
+
+@app.route('/api/server/shutdown', methods=['POST'])
+def shutdown_server():
+    """Gracefully shutdown the Flask server"""
+    try:
+        # Close all serial connections
+        global live_serial_connection, weather_serial_connection
+        
+        if live_serial_connection:
+            live_serial_connection.close()
+        
+        if weather_serial_connection:
+            weather_serial_connection.close()
+        
+        # Stop camera processes if running
+        global camera_stream_process, camera_recording_process
+        
+        if camera_stream_process:
+            camera_stream_process.terminate()
+            camera_stream_process.wait()
+        
+        if camera_recording_process:
+            camera_recording_process.terminate()
+            camera_recording_process.wait()
+        
+        print("Dashboard server shutting down...")
+        
+        # Use os._exit to forcefully exit (works in debug mode)
+        def shutdown():
+            os._exit(0)
+        
+        # Schedule shutdown after response is sent
+        import threading
+        threading.Timer(0.5, shutdown).start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Server shutting down...'
+        })
+        
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
