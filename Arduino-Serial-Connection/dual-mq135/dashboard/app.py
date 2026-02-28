@@ -588,6 +588,8 @@ def get_system_stats():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ===== WEATHER STATION ENDPOINTS =====
+# Note: All CO2 values are stored and returned as raw sensor readings.
+# A +400 ppm offset is applied in the frontend to account for atmospheric baseline.
 
 @app.route('/api/weather/status', methods=['GET'])
 def get_weather_status():
@@ -658,7 +660,12 @@ def stop_weather_live_monitor():
 
 @app.route('/api/weather/live/data', methods=['GET'])
 def get_weather_live_data():
-    """Get current live weather readings"""
+    """Get current live weather readings
+    
+    Note: CO2 values returned are raw sensor readings.
+    The frontend applies a +400 ppm offset to account for 
+    atmospheric baseline CO2 concentration.
+    """
     global weather_live_active, weather_serial_connection
     
     if not weather_live_active or not weather_serial_connection:
@@ -671,7 +678,7 @@ def get_weather_live_data():
             # Skip system messages and header line
             if line.startswith('SYSTEM') or line.startswith('RTC:') or \
                line.startswith('BME280:') or line.startswith('VEML6070:') or \
-               line.startswith('SETUP') or 'Date' in line:
+               line.startswith('SETUP') or 'Date' in line or line.startswith('SD:'):
                 return jsonify({'success': True, 'data': None})
             
             # Parse data: Date,Time,CO2,CH4,H2,Temp,Pressure,Humidity,UV
@@ -683,7 +690,7 @@ def get_weather_live_data():
                             'success': True,
                             'date': parts[0],
                             'time': parts[1],
-                            'co2': float(parts[2]),
+                            'co2': float(parts[2]),  # Raw sensor value
                             'ch4': float(parts[3]),
                             'h2': float(parts[4]),
                             'temperature': float(parts[5]),
@@ -752,7 +759,11 @@ def start_weather_recording():
 
 @app.route('/api/weather/data/<filename>', methods=['GET'])
 def get_weather_data(filename):
-    """Get weather CSV data for plotting"""
+    """Get weather CSV data for plotting
+    
+    Note: CO2 values returned are raw sensor readings.
+    Apply +400 ppm offset in the frontend for atmospheric baseline.
+    """
     try:
         filepath = os.path.join(WEATHER_DATA_DIR, filename)
         if not os.path.exists(filepath):

@@ -743,12 +743,100 @@
             </div>
         </div>
         
+        <!-- Weather Station Panel -->
+        <div class="control-panel">
+            <h2>🌤️ Weather Station</h2>
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Environmental monitoring with MQ sensors</p>
+            
+            <div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 12px;">
+                <div class="stat-item" style="border: none; padding: 4px 0;">
+                    <span class="stat-label">📍 Port</span>
+                    <span class="stat-value" id="weatherPort" style="color: #0369a1;">Not connected</span>
+                </div>
+                <div class="stat-item" style="border: none; padding: 4px 0;">
+                    <span class="stat-label">📊 Status</span>
+                    <span class="stat-value" id="weatherStatus" style="color: #0369a1;">Idle</span>
+                </div>
+            </div>
+            
+            <!-- Live Readings Display -->
+            <div id="weatherReadings" style="display: none; background: #f9fafb; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 12px;">
+                <h3 style="font-size: 14px; color: #555; margin-bottom: 10px;">Current Readings</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                        <div style="color: #666; font-size: 11px;">CO₂</div>
+                        <div style="font-weight: 600; color: #059669;" id="weatherCO2">-- ppm</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 11px;">CH₄</div>
+                        <div style="font-weight: 600; color: #0369a1;" id="weatherCH4">-- ppm</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 11px;">H₂</div>
+                        <div style="font-weight: 600; color: #7c3aed;" id="weatherH2">-- ppm</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 11px;">Temp</div>
+                        <div style="font-weight: 600; color: #dc2626;" id="weatherTemp">-- °C</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 11px;">Pressure</div>
+                        <div style="font-weight: 600; color: #ea580c;" id="weatherPressure">-- hPa</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 11px;">Humidity</div>
+                        <div style="font-weight: 600; color: #0891b2;" id="weatherHumidity">-- %</div>
+                    </div>
+                    <div>
+                        <div style="color: #666; font-size: 11px;">UV Index</div>
+                        <div style="font-weight: 600; color: #ca8a04;" id="weatherUV">--</div>
+                    </div>
+                </div>
+                <div style="margin-top: 8px; padding: 6px; background: #fef3c7; border-radius: 4px; font-size: 11px; color: #92400e;">
+                    <strong>Note:</strong> CO₂ offset by +400 ppm for atmospheric baseline
+                </div>
+            </div>
+            
+            <!-- Live Monitoring Controls -->
+            <div style="border-top: 2px solid #e5e7eb; padding-top: 15px; margin-top: 15px;">
+                <h3 style="color: #555; font-size: 16px; margin-bottom: 15px;">🔴 Live Monitoring</h3>
+                <div id="weatherLiveControls">
+                    <button class="btn btn-primary" id="startWeatherLiveButton" style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);">
+                        ▶️ Start Weather Monitor
+                    </button>
+                    <button class="btn btn-primary" id="stopWeatherLiveButton" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); display: none;">
+                        ⏹️ Stop Weather Monitor
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Recording Controls -->
+            <div style="border-top: 2px solid #e5e7eb; padding-top: 15px; margin-top: 15px;">
+                <h3 style="color: #555; font-size: 16px; margin-bottom: 10px;">💾 Data Recording</h3>
+                <div class="form-group">
+                    <label for="weatherDuration">Duration (seconds)</label>
+                    <input type="number" id="weatherDuration" min="10" max="3600" value="60" required>
+                </div>
+                <button class="btn btn-primary" id="recordWeatherButton" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                    📊 Record Weather Data
+                </button>
+                <div id="weatherRecordStatus" style="margin-top: 10px; font-size: 13px; color: #666;"></div>
+            </div>
+        </div>
+        
         </div><!-- End panels-grid -->
         
         <!-- Full-width graph at bottom -->
         <div class="graph-container">
             <h2>📊 Sensor Data Visualization</h2>
             <div id="plot"></div>
+        </div>
+        
+        <!-- Weather Station Live Graph -->
+        <div class="graph-container" id="weatherGraphContainer" style="display: none;">
+            <h2>🌤️ Weather Station Live Data</h2>
+            <p style="font-size: 13px; color: #666; margin-bottom: 10px;">Real-time environmental monitoring (CO₂ values offset by +400 ppm)</p>
+            <div id="weatherPlot"></div>
         </div>
     </div>
     
@@ -1347,6 +1435,276 @@
         // Update system stats every 2 seconds
         setInterval(updateSystemStats, 2000);
         updateSystemStats();  // Initial update
+        
+        // ===== WEATHER STATION =====
+        let weatherLiveInterval = null;
+        let weatherDataBuffer = {
+            timestamps: [],
+            co2: [],
+            ch4: [],
+            h2: [],
+            temperature: [],
+            pressure: [],
+            humidity: [],
+            uv: []
+        };
+        const MAX_WEATHER_POINTS = 200;  // Keep last 200 data points
+        const CO2_OFFSET = 400;  // ppm offset for atmospheric baseline
+        
+        // Start weather live monitoring
+        document.getElementById('startWeatherLiveButton').addEventListener('click', async function() {
+            try {
+                const response = await fetch('/api/weather/live/start', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('startWeatherLiveButton').style.display = 'none';
+                    document.getElementById('stopWeatherLiveButton').style.display = 'block';
+                    document.getElementById('weatherStatus').textContent = 'Live Monitoring';
+                    document.getElementById('weatherPort').textContent = result.port;
+                    document.getElementById('weatherReadings').style.display = 'block';
+                    document.getElementById('weatherGraphContainer').style.display = 'block';
+                    
+                    // Clear previous buffer
+                    weatherDataBuffer = {
+                        timestamps: [],
+                        co2: [],
+                        ch4: [],
+                        h2: [],
+                        temperature: [],
+                        pressure: [],
+                        humidity: [],
+                        uv: []
+                    };
+                    
+                    // Start polling for data
+                    weatherLiveInterval = setInterval(updateWeatherLiveData, 500);
+                    
+                    showMessage('success', '✅ Weather station monitoring started');
+                } else {
+                    showMessage('error', `❌ ${result.error}`);
+                }
+            } catch (error) {
+                showMessage('error', `❌ Request failed: ${error.message}`);
+            }
+        });
+        
+        // Stop weather live monitoring
+        document.getElementById('stopWeatherLiveButton').addEventListener('click', async function() {
+            try {
+                const response = await fetch('/api/weather/live/stop', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('startWeatherLiveButton').style.display = 'block';
+                    document.getElementById('stopWeatherLiveButton').style.display = 'none';
+                    document.getElementById('weatherStatus').textContent = 'Idle';
+                    document.getElementById('weatherPort').textContent = 'Not connected';
+                    
+                    if (weatherLiveInterval) {
+                        clearInterval(weatherLiveInterval);
+                        weatherLiveInterval = null;
+                    }
+                    
+                    showMessage('success', '✅ Weather station monitoring stopped');
+                } else {
+                    showMessage('error', `❌ ${result.error}`);
+                }
+            } catch (error) {
+                showMessage('error', `❌ Request failed: ${error.message}`);
+            }
+        });
+        
+        // Update weather live data
+        async function updateWeatherLiveData() {
+            try {
+                const response = await fetch('/api/weather/live/data');
+                const result = await response.json();
+                
+                if (result.success && result.co2 !== undefined) {
+                    // Apply CO2 offset
+                    const co2WithOffset = result.co2 + CO2_OFFSET;
+                    
+                    // Update current readings display
+                    document.getElementById('weatherCO2').textContent = co2WithOffset.toFixed(1) + ' ppm';
+                    document.getElementById('weatherCH4').textContent = result.ch4.toFixed(1) + ' ppm';
+                    document.getElementById('weatherH2').textContent = result.h2.toFixed(1) + ' ppm';
+                    document.getElementById('weatherTemp').textContent = result.temperature.toFixed(1) + ' °C';
+                    document.getElementById('weatherPressure').textContent = result.pressure.toFixed(1) + ' hPa';
+                    document.getElementById('weatherHumidity').textContent = result.humidity.toFixed(1) + ' %';
+                    document.getElementById('weatherUV').textContent = result.uv;
+                    
+                    // Add to buffer for graphing
+                    const timestamp = new Date().getTime() / 1000;  // seconds
+                    weatherDataBuffer.timestamps.push(timestamp);
+                    weatherDataBuffer.co2.push(co2WithOffset);
+                    weatherDataBuffer.ch4.push(result.ch4);
+                    weatherDataBuffer.h2.push(result.h2);
+                    weatherDataBuffer.temperature.push(result.temperature);
+                    weatherDataBuffer.pressure.push(result.pressure);
+                    weatherDataBuffer.humidity.push(result.humidity);
+                    weatherDataBuffer.uv.push(result.uv);
+                    
+                    // Keep buffer size limited
+                    if (weatherDataBuffer.timestamps.length > MAX_WEATHER_POINTS) {
+                        weatherDataBuffer.timestamps.shift();
+                        weatherDataBuffer.co2.shift();
+                        weatherDataBuffer.ch4.shift();
+                        weatherDataBuffer.h2.shift();
+                        weatherDataBuffer.temperature.shift();
+                        weatherDataBuffer.pressure.shift();
+                        weatherDataBuffer.humidity.shift();
+                        weatherDataBuffer.uv.shift();
+                    }
+                    
+                    // Update graph
+                    updateWeatherGraph();
+                }
+            } catch (error) {
+                console.error('Failed to fetch weather data:', error);
+            }
+        }
+        
+        // Update weather graph
+        function updateWeatherGraph() {
+            if (weatherDataBuffer.timestamps.length === 0) return;
+            
+            // Create relative time axis (seconds from start)
+            const startTime = weatherDataBuffer.timestamps[0];
+            const relativeTime = weatherDataBuffer.timestamps.map(t => t - startTime);
+            
+            const traces = [
+                {
+                    x: relativeTime,
+                    y: weatherDataBuffer.co2,
+                    name: 'CO₂ (ppm)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#059669', width: 2 }
+                },
+                {
+                    x: relativeTime,
+                    y: weatherDataBuffer.ch4,
+                    name: 'CH₄ (ppm)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#0369a1', width: 2 }
+                },
+                {
+                    x: relativeTime,
+                    y: weatherDataBuffer.h2,
+                    name: 'H₂ (ppm)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#7c3aed', width: 2 }
+                },
+                {
+                    x: relativeTime,
+                    y: weatherDataBuffer.temperature,
+                    name: 'Temp (°C)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#dc2626', width: 2 },
+                    yaxis: 'y2'
+                },
+                {
+                    x: relativeTime,
+                    y: weatherDataBuffer.humidity,
+                    name: 'Humidity (%)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#0891b2', width: 2 },
+                    yaxis: 'y2'
+                },
+                {
+                    x: relativeTime,
+                    y: weatherDataBuffer.pressure,
+                    name: 'Pressure (hPa)',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#ea580c', width: 2 },
+                    yaxis: 'y3'
+                }
+            ];
+            
+            const layout = {
+                title: 'Live Weather Station Data',
+                xaxis: { 
+                    title: 'Time (seconds)',
+                    gridcolor: '#e5e7eb'
+                },
+                yaxis: {
+                    title: 'Gas Concentration (ppm)',
+                    gridcolor: '#e5e7eb',
+                    titlefont: { color: '#059669' },
+                    tickfont: { color: '#059669' }
+                },
+                yaxis2: {
+                    title: 'Temp (°C) / Humidity (%)',
+                    overlaying: 'y',
+                    side: 'right',
+                    titlefont: { color: '#dc2626' },
+                    tickfont: { color: '#dc2626' }
+                },
+                yaxis3: {
+                    title: 'Pressure (hPa)',
+                    overlaying: 'y',
+                    side: 'right',
+                    position: 0.95,
+                    titlefont: { color: '#ea580c' },
+                    tickfont: { color: '#ea580c' }
+                },
+                showlegend: true,
+                legend: {
+                    x: 0,
+                    y: 1.1,
+                    orientation: 'h'
+                },
+                margin: { l: 60, r: 120, t: 80, b: 50 },
+                hovermode: 'x unified'
+            };
+            
+            Plotly.newPlot('weatherPlot', traces, layout, {responsive: true});
+        }
+        
+        // Record weather data
+        document.getElementById('recordWeatherButton').addEventListener('click', async function() {
+            const duration = parseInt(document.getElementById('weatherDuration').value);
+            const button = document.getElementById('recordWeatherButton');
+            const statusDiv = document.getElementById('weatherRecordStatus');
+            
+            button.disabled = true;
+            button.textContent = '⏳ Recording...';
+            statusDiv.textContent = `Recording for ${duration} seconds...`;
+            statusDiv.style.color = '#0369a1';
+            
+            try {
+                const response = await fetch('/api/weather/record/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ duration: duration })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('success', `✅ ${result.message}`);
+                    statusDiv.textContent = `Recorded to: ${result.output_file}`;
+                    statusDiv.style.color = '#059669';
+                } else {
+                    showMessage('error', `❌ ${result.error}`);
+                    statusDiv.textContent = 'Recording failed';
+                    statusDiv.style.color = '#dc2626';
+                }
+            } catch (error) {
+                showMessage('error', `❌ Request failed: ${error.message}`);
+                statusDiv.textContent = 'Recording failed';
+                statusDiv.style.color = '#dc2626';
+            } finally {
+                button.disabled = false;
+                button.textContent = '📊 Record Weather Data';
+            }
+        });
         
         // Initialize on page load
         init();
